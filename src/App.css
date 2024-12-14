@@ -1,0 +1,32 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* .ant-form-item-required::before{
+  display: none !important;
+} */
+
+.ant-table-cell:last-child{
+  text-align: end !important;
+}
+th{
+  background-color: white !important;
+  font-weight: 400 !important;
+  color: #667085 !important;
+}
+th::before{
+  display: none;
+}
+
+
+.ant-table-wrapper{
+  position: relative;
+}
+.ant-pagination{
+  position: absolute;
+  right: 0;
+}
+
+.ant-upload-select{
+  width: 100%;
+}
