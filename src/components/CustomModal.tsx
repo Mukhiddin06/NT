@@ -1,8 +1,7 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Button, Form, Input, Modal, Select, Space, Upload } from "antd";
 import { CourseType, ModalType } from "../types/type";
 import { PaperClipOutlined } from "@ant-design/icons";
-import coursesStore from "../store/CoursesStore";
 import agreementStore from "../store/AgreementStore";
 import toast, { Toaster } from "react-hot-toast";
 import { UploadChangeParam, UploadFile } from "antd/es/upload";
@@ -17,35 +16,51 @@ export interface FormValues {
 const CustomModal: React.FC<ModalType> = observer(
   ({ isModalOpen, setIsModalOpen, id }) => {
     const [form] = Form.useForm();
+    const [file, setFile] = useState<UploadFile | null>(null);
+    const courses = useMemo(
+      () =>
+        agreementStore.coureses.map((item: CourseType) => ({
+          label: item.name,
+          value: item.id,
+        })),
+      [agreementStore.coureses]
+    );
 
-    useEffect(() =>  {
-      async function fetchContract(){
-      if (id) {
-       await  agreementStore.fetchGetById(id);
-        if (agreementStore.contract) {
-          form.setFieldsValue({
-            title: agreementStore.contract.title,
-            courseId: agreementStore.contract.course.id,
-            file: agreementStore.contract.attachment
-              ? [
-                  {
-                    uid: "-1",
-                    name: agreementStore.contract.attachment.origName,
-                    status: "done",
-                    url: agreementStore.contract.attachment.url,
-                  },
-                ]
-              : [],
-          });
-        }
-      }}
-      fetchContract()
-    }, [id, isModalOpen, form]);
-    // console.log(agreementStore.contract);
+    const handleFileChange = (e: UploadChangeParam) => {
+      if (e.file) {
+        setFile(e.file);
+      }
+    };
 
     useEffect(() => {
-      coursesStore.fetchCourses()
-    }, [])
+      async function fetchContract() {
+        if (isModalOpen && id) {
+          await agreementStore.getById(id);
+          if (agreementStore.contract) {
+            agreementStore.setEditFile(agreementStore.contract.attachment);
+            form.setFieldsValue({
+              title: agreementStore.contract.title,
+              courseId: agreementStore.contract.course.id,
+              file: agreementStore.contract.attachment
+                ? [
+                    {
+                      uid: "-1",
+                      name: agreementStore.contract.attachment.origName,
+                      status: "done",
+                      url: agreementStore.contract.attachment.url,
+                    },
+                  ]
+                : [],
+            });
+          }
+        }
+      }
+      fetchContract();
+    }, [id, isModalOpen, form]);
+
+    useEffect(() => {
+      agreementStore.getCourses();
+    }, []);
 
     const handleOk = () => {
       setIsModalOpen(false);
@@ -53,6 +68,8 @@ const CustomModal: React.FC<ModalType> = observer(
 
     const handleCancel = () => {
       setIsModalOpen(false);
+      agreementStore.contract = null;
+      form.resetFields();
     };
 
     const normFile = (e: UploadChangeParam) => {
@@ -63,16 +80,14 @@ const CustomModal: React.FC<ModalType> = observer(
     };
 
     const onFinish = async (values: FormValues) => {
-
+      agreementStore.setName(values.title);
+      agreementStore.setCourse(values.courseId);
+      if (file) {
+        agreementStore.setFiles(file);
+      }
       if (id) {
-        agreementStore.setName(values.title);
-        agreementStore.setCourse(values.courseId);
-        agreementStore.setFiles(values.file);
-        await agreementStore.fetchPutContract(id);
+        await agreementStore.putContract(id);
       } else {
-        agreementStore.setName(values.title);
-        agreementStore.setCourse(values.courseId);
-        agreementStore.setFiles(values.file);
         await agreementStore.handleCreateSubmit();
       }
 
@@ -83,14 +98,9 @@ const CustomModal: React.FC<ModalType> = observer(
     return (
       <>
         <Toaster position="top-center" reverseOrder={false} />
-        <Modal
-          open={isModalOpen}
-          onOk={handleOk}
-          onCancel={handleCancel}
-          footer={null}
-        >
+        <Modal open={isModalOpen} onCancel={handleCancel} footer={null}>
           <h2 className="font-medium text-[18px] leading-[27px] text-[#0F1826]">
-            Shartnoma yaratish
+            {id ? "Shartnoma o‘zgartirish" : "Shartnoma yaratish"}
           </h2>
           <Form
             form={form}
@@ -110,8 +120,9 @@ const CustomModal: React.FC<ModalType> = observer(
                 size="large"
                 placeholder="Tanlang"
                 style={{ fontWeight: "400" }}
+                options={courses}
               >
-                {coursesStore.coureses.map((item: CourseType) => (
+                {agreementStore.coureses.map((item: CourseType) => (
                   <Select.Option key={item.id} value={item.id}>
                     {item.name}
                   </Select.Option>
@@ -137,6 +148,7 @@ const CustomModal: React.FC<ModalType> = observer(
               getValueFromEvent={normFile}
             >
               <Upload
+                onChange={handleFileChange}
                 beforeUpload={(file) => {
                   const isDocx =
                     file.type ===
@@ -145,9 +157,9 @@ const CustomModal: React.FC<ModalType> = observer(
                     toast.error(
                       "Faqat .docx formatdagi fayllarga ruxsat beriladi!"
                     );
-                    return Upload.LIST_IGNORE
+                    return Upload.LIST_IGNORE;
                   }
-                  return false // Fayl ro'yxatga qo'shilmaydi
+                  return false; // Fayl ro'yxatga qo'shilmaydi
                 }}
               >
                 <Button
@@ -164,11 +176,7 @@ const CustomModal: React.FC<ModalType> = observer(
             </Form.Item>
             <Form.Item className="text-end">
               <Space>
-                <Button
-                  htmlType="reset"
-                  size="large"
-                  onClick={() => setIsModalOpen(false)}
-                >
+                <Button htmlType="reset" size="large" onClick={handleOk}>
                   Bekor qilish
                 </Button>
                 <Button
@@ -176,8 +184,9 @@ const CustomModal: React.FC<ModalType> = observer(
                   size="large"
                   className="w-full bg-[#0EB182] hover:!bg-[#20ca9a]"
                   htmlType="submit"
+                  loading={agreementStore.loading}
                 >
-                  Saqlash
+                  {id ? "O‘zgartirish" : "Saqlash"}
                 </Button>
               </Space>
             </Form.Item>

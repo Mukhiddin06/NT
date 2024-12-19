@@ -19,22 +19,21 @@ const Login = () => {
 
   const onFinish: FormProps<FieldType>["onFinish"] = async (values) => {
     try {
+      setLoading(true);
       const response = await useAxios().post("/api/staff/auth/sign-in", values);
       if (response) {
-        setLoading(true);
         toast.success("Tizimga kirildi!");
-        localStorage.setItem("token", JSON.stringify(response.data.data.accessToken));
-        setTimeout(() => {
-          navigate("/agreement");
-          setLoading(false);
-        }, 800);
+        localStorage.setItem(
+          "token",
+          JSON.stringify(response.data.data.accessToken)
+        );
+        navigate("/agreement");
+        setLoading(false);
       }
     } catch (error) {
-      setLoading(true)
       toast.error("Parol yoki loginda xatolik");
-      setTimeout(() => {
-        setLoading(false);
-      }, 800);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -49,10 +48,10 @@ const Login = () => {
       <Toaster position="top-center" reverseOrder={false} />
       <div className="flex">
         <img
-          className="h-[100vh] w-[600px] object-cover"
+          className="h-[100vh] w-[50%] object-cover"
           src={NT}
           alt="NT photo"
-          width={600}
+          width={"50%"}
           height={"100%"}
         />
         <div className="pl-[65px]">

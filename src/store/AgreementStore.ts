@@ -2,39 +2,48 @@ import { makeAutoObservable, runInAction } from "mobx";
 import { useAxios } from "../hooks/useAxios";
 import toast from "react-hot-toast";
 import { UploadFile } from "antd";
-import { ContractType } from "../types/type";
+import { AttachmentType, ContractType } from "../types/type";
 
 class AgreementStore {
   contracts = [];
+  coureses = [];
   page = 1;
   perPage = 10;
   total = 0;
   search = "";
-  token = localStorage.getItem("token")
-    ? JSON.parse(localStorage.getItem("token") as string)
-    : null;
-
-  files: UploadFile[] = [];
+  file: UploadFile | null = null;
   name = "";
   course = "";
   refresh = false;
-
+  editFile: AttachmentType | null = null;
   contract: ContractType | null = null;
+  loading = false;
 
   constructor() {
     makeAutoObservable(this);
   }
 
-  async fetchContracts() {
+  async getCourses() {
     try {
+      const response = await useAxios().get("/api/staff/courses", {
+        params: {},
+      });
+      runInAction(() => {
+        this.coureses = response.data.data.courses;
+      });
+    } catch (error) {
+      console.error("Xatolik:", error);
+    }
+  }
+
+  async getContracts() {
+    try {
+      this.loading = true;
       const response = await useAxios().get("/api/staff/contracts/all", {
         params: {
           page: this.page,
           perPage: this.perPage,
           search: this.search,
-        },
-        headers: {
-          Authorization: this.token ? `Bearer ${this.token}` : "",
         },
       });
       runInAction(() => {
@@ -43,21 +52,22 @@ class AgreementStore {
       });
     } catch (error) {
       console.error("Xatolik:", error);
+    } finally {
+      this.loading = false;
     }
   }
 
   setPagination = (page: number, perPage: number) => {
     this.page = page;
     this.perPage = perPage;
-    this.fetchContracts();
   };
+
   setSearch(search: string) {
     this.search = search;
-    this.fetchContracts(); 
   }
 
-  setFiles(files: UploadFile[]) {
-    this.files = files;
+  setFiles(file: UploadFile) {
+    this.file = file;
   }
 
   setName(name: string) {
@@ -68,24 +78,29 @@ class AgreementStore {
     this.course = course;
   }
 
+  setEditFile(attachment: AttachmentType) {
+    this.editFile = attachment;
+  }
+
   async uploadFileAttachment() {
     const response = await useAxios().post(
       "/api/staff/upload/contract/attachment",
       {
-        files: this.files[0].originFileObj,
+        files: this.file,
       },
       {
         headers: {
-          Authorization: this.token ? `Bearer ${this.token}` : "",
           "Content-Type": "multipart/form-data",
         },
       }
     );
+
     return response;
   }
 
   async handleCreateSubmit() {
     try {
+      this.loading = true;
       const response = await this.uploadFileAttachment();
       if (response.status === 200) {
         const contractData = {
@@ -98,32 +113,23 @@ class AgreementStore {
           },
         };
 
-        await useAxios().post("/api/staff/contracts/create", contractData, {
-          headers: {
-            Authorization: this.token ? `Bearer ${this.token}` : "",
-          },
-        });
-        runInAction(() => {
-          this.refresh = !this.refresh;
-          this.files = [];
-        });
-        this.fetchContracts();
-        toast.success("Shartnoma muvaffaqiyatli yaratildi!");
-      } else {
-        toast.error("Xatolik yuz berdi!");
+        await useAxios()
+          .post("/api/staff/contracts/create", contractData)
+          .then(() => {
+            this.getContracts();
+            toast.success("Shartnoma muvaffaqiyatli yaratildi!");
+          });
       }
     } catch (error) {
       toast.error("Xatolik yuz berdi!");
+    } finally {
+      this.loading = false;
     }
   }
 
-  async fetchGetById(id: number) {
+  async getById(id: number) {
     try {
-      const response = await useAxios().get(`/api/staff/contracts/${id}`, {
-        headers: {
-          Authorization: this.token ? `Bearer ${this.token}` : "",
-        },
-      });
+      const response = await useAxios().get(`/api/staff/contracts/${id}`);
       runInAction(() => {
         this.contract = response.data.data;
       });
@@ -132,36 +138,35 @@ class AgreementStore {
     }
   }
 
-  async fetchPutContract(id: number) {
+  async putContract(id: number) {
     try {
-      const response = await this.uploadFileAttachment();
-
-      if (response.status === 200) {
-        const contractUpdateData = {
-          title: this.name,
-          courseId: this.course,
-          attachment: {
-            size: response.data.data[0].size,
-            url: response.data.data[0].path,
-            origName: response.data.data[0].fileName,
-          },
+      this.loading = true;
+      let attachmentData = this.editFile;
+      if (this.file) {
+        const response = await this.uploadFileAttachment();
+        attachmentData = {
+          size: response.data.data[0].size,
+          url: response.data.data[0].path,
+          origName: response.data.data[0].fileName,
         };
-
-        await useAxios().put(`/api/staff/contracts/${id}`, contractUpdateData, {
-          headers: {
-            Authorization: this.token ? `Bearer ${this.token}` : "",
-          },
-        });
-        runInAction(() => {
-          this.contracts = response.data.data.contracts;
-          this.total = response.data.data.total;
-        });
-        this.fetchContracts();
-        toast.success("Shartnoma muvaffaqiyatli o'zgartirildi!");
       }
+
+      const contractUpdateData = {
+        title: this.name,
+        courseId: this.course,
+        attachment: attachmentData,
+      };
+      await useAxios()
+        .put(`/api/staff/contracts/${id}`, contractUpdateData)
+        .then(() => {
+          this.getContracts();
+          toast.success("Shartnoma muvaffaqiyatli o'zgartirildi!");
+        });
     } catch (error) {
       toast.error("Shartnoma o'zgartirilmadi!");
       console.error("Xatolik:", error);
+    } finally {
+      this.loading = false;
     }
   }
 }
