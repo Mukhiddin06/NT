@@ -110,9 +110,9 @@ const Agreement = observer(() => {
       </div>
       <div className="mx-[25px] mb-[75px] rounded-b-[12px] border-x-[2px] border-b-[2px] border-[#EDEDED] px-[24px]">
         <TableCustom
-          contracts={agreementStore.contracts}
+          contracts={agreementStore.allContracts.contracts}
           fetchContracts={agreementStore.setPagination}
-          total={agreementStore.total}
+          total={agreementStore.allContracts.total}
           columns={columns}
           loading={agreementStore.loading}
         />

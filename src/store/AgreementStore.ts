@@ -5,11 +5,10 @@ import { UploadFile } from "antd";
 import { AttachmentType, ContractType } from "../types/type";
 
 class AgreementStore {
-  contracts = [];
+  allContracts = { contracts: [], total: 0 };
   coureses = [];
   page = 1;
   perPage = 10;
-  total = 0;
   search = "";
   file: UploadFile | null = null;
   name = "";
@@ -47,8 +46,7 @@ class AgreementStore {
         },
       });
       runInAction(() => {
-        this.contracts = response.data.data.contracts;
-        this.total = response.data.data.total;
+        this.allContracts = response.data.data;
       });
     } catch (error) {
       console.error("Xatolik:", error);
