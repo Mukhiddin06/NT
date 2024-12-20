@@ -178,7 +178,7 @@ const CustomModal: React.FC = () => {
             rules={[{ required: true, message: "File biriktiring!" }]}
             getValueFromEvent={normFile}
           >
-            <Upload maxCount={1} beforeUpload={beforeUpload}>
+            <Upload accept=".docx" maxCount={1} beforeUpload={beforeUpload}>
               <Button
                 size="large"
                 icon={<PaperClipOutlined className="text-[#0EB182] text-lg" />}

@@ -36,7 +36,7 @@ class AgreementStore {
 
   async getAllContracts() {
     try {
-      this.loading = true;
+      this.setIsLoading(true);
       const response = await getContracts({
         page: this.current,
         perPage: this.pageSize,
@@ -49,7 +49,7 @@ class AgreementStore {
     } catch (error) {
       console.error("Xatolik:", error);
     } finally {
-      this.loading = false;
+      this.setIsLoading(false);
     }
   }
 
