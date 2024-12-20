@@ -1,45 +1,37 @@
-import React, { useState } from "react";
+import React from "react";
 import { Table } from "antd";
 import { ContractType } from "../types/type";
 import type { TableColumnsType, TablePaginationConfig } from "antd";
+import agreementStore from "../store/AgreementStore";
 
 interface TableCustomProps {
   contracts: ContractType[];
-  fetchContracts: (page: number, perPage: number) => void;
   total: number;
-  columns: TableColumnsType<ContractType>
+  columns: TableColumnsType<ContractType>;
   loading: boolean;
 }
 
 const TableCustom: React.FC<TableCustomProps> = ({
   contracts,
-  fetchContracts,
   total,
   columns,
-  loading
+  loading,
 }) => {
-
-  const [pagination, setPagination] = useState({ current: 1, pageSize: 10 });
-
-
-  const handleTableChange = (paginationInfo: TablePaginationConfig) => {
-    const { current, pageSize } = paginationInfo;
-    setPagination({ current: current || 1, pageSize: pageSize || 10 });
-    fetchContracts(current || 1, pageSize || 10);
+  const handleTableChange = (pagination: TablePaginationConfig) => {
+    if (pagination.current && pagination.pageSize) {
+      agreementStore.setPagination(pagination.current, pagination.pageSize);
+    }
   };
-
-
-
 
   return (
     <>
       <Table<ContractType>
         columns={columns}
         loading={loading}
-        dataSource={contracts || []}
+        dataSource={contracts}
         pagination={{
-          current: pagination.current,
-          pageSize: pagination.pageSize,
+          current: agreementStore.current,
+          pageSize: agreementStore.pageSize,
           total: total,
           showSizeChanger: true,
         }}

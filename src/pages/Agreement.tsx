@@ -1,38 +1,38 @@
 import { SearchOutlined } from "@ant-design/icons";
 import { Button, Input, Popover } from "antd";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { observer } from "mobx-react-lite";
-import type { TableColumnsType } from "antd";
+import { TableColumnsType } from "antd";
 import { EditOutlined, MoreOutlined } from "@ant-design/icons";
 import TableCustom from "../components/TableCustom";
 import agreementStore from "../store/AgreementStore";
 import useDebounce from "../hooks/useDebounce";
 import CustomModal from "../components/CustomModal";
 import { ContractType } from "../types/type";
+import { Toaster } from "react-hot-toast";
 
 const Agreement = observer(() => {
-  const [search, setSearch] = useState("");
-  const [id, setId] = useState<number | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
-
-  const SearchTerm = useDebounce(search, 800);
+  const SearchTerm = useDebounce(agreementStore.search, 800);
   useEffect(() => {
-    agreementStore.setSearch(search);
-    agreementStore.getContracts();
-  }, [SearchTerm, agreementStore.page, agreementStore.perPage]);
+    agreementStore.setSearch(SearchTerm);
+    agreementStore.getAllContracts();
+  }, [SearchTerm, agreementStore.current, agreementStore.pageSize]);
+
+  useEffect(() => {
+    agreementStore.getCourses();
+  }, []);
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearch(e.target.value);
+    agreementStore.setSearch(e.target.value);
   };
 
   function handleClickMore(contract: ContractType) {
-    setId(contract.id);
-    setIsModalOpen(true);
+    agreementStore.setEditContract(contract);
+    agreementStore.setIsModalOpen(true);
   }
 
   function handleCreateOpenModal() {
-    setId(null);
-    setIsModalOpen(true);
+    agreementStore.setIsModalOpen(true);
   }
 
   const columns: TableColumnsType<ContractType> = useMemo(
@@ -56,10 +56,10 @@ const Agreement = observer(() => {
         key: "actions",
         render: (_, record) => (
           <Popover
-            title={
+            arrow={false}
+            content={
               <Button
                 type="text"
-                size="large"
                 className="text-[#667085] text-[16px] leading-[24px] w-full"
                 icon={<EditOutlined className="text-[#667085]" />}
                 onClick={() => handleClickMore(record)}
@@ -81,6 +81,7 @@ const Agreement = observer(() => {
 
   return (
     <>
+      <Toaster position="top-center" reverseOrder={false} />
       <div className="mx-[25px] mt-[25px] rounded-t-[12px] bg-[#FBFBFB] p-[24px] flex items-center justify-between border-x-[2px] border-t-[2px] border-[#EDEDED]">
         <Input
           placeholder="Qidiruv"
@@ -102,26 +103,21 @@ const Agreement = observer(() => {
           type="primary"
           htmlType="button"
           size="large"
-          className="bg-[#0EB182] hover:!bg-[#20ca9a]"
+          className="!bg-[#0EB182] hover:!bg-[#20ca9a]"
           onClick={handleCreateOpenModal}
         >
-          Qo‘shish
+          Qo'shish
         </Button>
       </div>
       <div className="mx-[25px] mb-[75px] rounded-b-[12px] border-x-[2px] border-b-[2px] border-[#EDEDED] px-[24px]">
         <TableCustom
           contracts={agreementStore.allContracts.contracts}
-          fetchContracts={agreementStore.setPagination}
           total={agreementStore.allContracts.total}
           columns={columns}
           loading={agreementStore.loading}
         />
       </div>
-      <CustomModal
-        isModalOpen={isModalOpen}
-        setIsModalOpen={setIsModalOpen}
-        id={id as number}
-      />
+      {agreementStore.isModalOpen && <CustomModal />}
     </>
   );
 });

@@ -1,200 +1,198 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { Button, Form, Input, Modal, Select, Space, Upload } from "antd";
-import { CourseType, ModalType } from "../types/type";
+import React, { useEffect, useMemo } from "react";
+import { Button, ButtonProps, Form, Input, Modal, Select, Upload } from "antd";
+import { AttachmentType, CourseType, FormValues } from "../types/type";
 import { PaperClipOutlined } from "@ant-design/icons";
 import agreementStore from "../store/AgreementStore";
-import toast, { Toaster } from "react-hot-toast";
-import { UploadChangeParam, UploadFile } from "antd/es/upload";
+import toast from "react-hot-toast";
+import { UploadChangeParam } from "antd/es/upload";
 import { observer } from "mobx-react-lite";
+import { uploadFileAttachment } from "../api/contracts";
 
-export interface FormValues {
-  courseId: string;
-  title: string;
-  file: UploadFile[];
-}
-
-const CustomModal: React.FC<ModalType> = observer(
-  ({ isModalOpen, setIsModalOpen, id }) => {
-    const [form] = Form.useForm();
-    const [file, setFile] = useState<UploadFile | null>(null);
-    const courses = useMemo(
-      () =>
-        agreementStore.coureses.map((item: CourseType) => ({
-          label: item.name,
-          value: item.id,
-        })),
-      [agreementStore.coureses]
-    );
-
-    const handleFileChange = (e: UploadChangeParam) => {
-      if (e.file) {
-        setFile(e.file);
-      }
+const CustomModal: React.FC = () => {
+  const [form] = Form.useForm();
+  const courses = useMemo(
+    () =>
+      agreementStore.courses.map((item: CourseType) => ({
+        label: item.name,
+        value: item.id,
+      })),
+    []
+  );
+  const okButtonProps: ButtonProps = useMemo(() => {
+    return {
+      type: "primary",
+      htmlType: "submit",
+      className: "bg-[#0EB182] hover:!bg-[#0EB182]/80",
     };
+  }, []);
+  const cancelBtnProps: ButtonProps = useMemo(() => {
+    return {
+      htmlType: "reset",
+      className: "!text-[#0EB182] hover:!border-[#0EB182]/80",
+    };
+  }, []);
 
-    useEffect(() => {
-      async function fetchContract() {
-        if (isModalOpen && id) {
-          await agreementStore.getById(id);
-          if (agreementStore.contract) {
-            agreementStore.setEditFile(agreementStore.contract.attachment);
-            form.setFieldsValue({
-              title: agreementStore.contract.title,
-              courseId: agreementStore.contract.course.id,
-              file: agreementStore.contract.attachment
-                ? [
-                    {
-                      uid: "-1",
-                      name: agreementStore.contract.attachment.origName,
-                      status: "done",
-                      url: agreementStore.contract.attachment.url,
-                    },
-                  ]
-                : [],
-            });
-          }
+  useEffect(() => {
+    if (agreementStore.editContract) {
+      form.setFieldsValue({
+        title: agreementStore.editContract.title,
+        courseId: agreementStore.editContract.course?.id,
+        file: agreementStore.editContract.attachment
+          ? [
+              {
+                uid: "-1",
+                name: agreementStore.editContract.attachment.origName,
+                status: "done",
+                url: agreementStore.editContract.attachment.url,
+              },
+            ]
+          : [],
+      });
+    }
+  }, [agreementStore?.editContract?.id, agreementStore.isModalOpen, form]);
+
+  const handleCancel = () => {
+    agreementStore.setIsModalOpen(false);
+    agreementStore.setEditContract(null);
+    form.resetFields();
+  };
+
+  const normFile = (e: UploadChangeParam) => {
+    if (Array.isArray(e)) {
+      return e;
+    }
+    return e?.fileList;
+  };
+
+  const beforeUpload = (file: File) => {
+    const isDocx =
+      file.type ===
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    if (!isDocx) {
+      toast.error("Faqat .docx formatdagi fayllarga ruxsat beriladi!");
+      return Upload.LIST_IGNORE;
+    }
+    return false;
+  };
+
+  const onFinish = async (values: FormValues) => {
+    try {
+      agreementStore.setIsLoading(true);
+      let attachment = agreementStore.editContract?.attachment;
+      if (values.file[0].originFileObj) {
+        const uploadResponse = await uploadFileAttachment(
+          values.file[0].originFileObj
+        );
+        if (uploadResponse.success) {
+          const uploadedFile = uploadResponse.data[0];
+          attachment = {
+            size: uploadedFile.size,
+            url: uploadedFile.path,
+            origName: uploadedFile.fileName,
+          };
         }
       }
-      fetchContract();
-    }, [id, isModalOpen, form]);
 
-    useEffect(() => {
-      agreementStore.getCourses();
-    }, []);
+      const contractData = {
+        title: values.title,
+        courseId: values.courseId,
+        attachment: attachment as AttachmentType,
+      };
 
-    const handleOk = () => {
-      setIsModalOpen(false);
-    };
+      const submitResponse = await agreementStore.handleSubmit(
+        contractData,
+        agreementStore.editContract?.id
+      );
 
-    const handleCancel = () => {
-      setIsModalOpen(false);
-      agreementStore.contract = null;
-      form.resetFields();
-    };
-
-    const normFile = (e: UploadChangeParam) => {
-      if (Array.isArray(e)) {
-        return e;
+      if (submitResponse?.success) {
+        toast.success(
+          agreementStore.editContract
+            ? "Shartnoma o'zgartirlidi!"
+            : "Shartnoma qo'shildi!"
+        );
+        handleCancel();
+        agreementStore.getAllContracts();
       }
-      return e?.fileList;
-    };
+    } catch (error) {
+      console.error(error);
+      toast.error("Xatolik yuz berdi!");
+    } finally {
+      agreementStore.setIsLoading(false);
+    }
+  };
 
-    const onFinish = async (values: FormValues) => {
-      agreementStore.setName(values.title);
-      agreementStore.setCourse(values.courseId);
-      if (file) {
-        agreementStore.setFiles(file);
-      }
-      if (id) {
-        await agreementStore.putContract(id);
-      } else {
-        await agreementStore.handleCreateSubmit();
-      }
-
-      setIsModalOpen(false);
-      form.resetFields();
-    };
-
-    return (
-      <>
-        <Toaster position="top-center" reverseOrder={false} />
-        <Modal open={isModalOpen} onCancel={handleCancel} footer={null}>
-          <h2 className="font-medium text-[18px] leading-[27px] text-[#0F1826]">
-            {id ? "Shartnoma o‘zgartirish" : "Shartnoma yaratish"}
-          </h2>
-          <Form
-            form={form}
-            autoComplete="off"
-            layout="vertical"
-            onFinish={onFinish}
-            style={{ maxWidth: 600 }}
-            className="mt-[24px]"
+  return (
+    <>
+      <Modal
+        open={agreementStore.isModalOpen}
+        onCancel={handleCancel}
+        onOk={() => form.submit()}
+        onClose={handleCancel}
+        confirmLoading={agreementStore.loading}
+        title={
+          agreementStore.editContract
+            ? "Shartnoma o'zgartirish"
+            : "Shartnoma yaratish"
+        }
+        okText={agreementStore.editContract ? "O'zgartirish" : "Saqlash"}
+        okButtonProps={okButtonProps}
+        cancelButtonProps={cancelBtnProps}
+        cancelText="Bekor qilish"
+      >
+        <Form
+          form={form}
+          autoComplete="off"
+          layout="vertical"
+          onFinish={onFinish}
+          style={{ maxWidth: 600 }}
+          className="mt-[24px]"
+        >
+          <Form.Item
+            label="Kurs"
+            name="courseId"
+            className="font-semibold text-[14px] leading-[21px] "
+            rules={[{ required: true, message: "Kurs Kiriting!" }]}
           >
-            <Form.Item
-              label="Kurs"
-              name="courseId"
-              className="font-semibold text-[14px] leading-[21px] "
-              rules={[{ required: true, message: "Kurs Kiriting!" }]}
-            >
-              <Select
+            <Select
+              size="large"
+              placeholder="Tanlang"
+              style={{ fontWeight: "400" }}
+              options={courses}
+            />
+          </Form.Item>
+          <Form.Item
+            label="Nomi"
+            name="title"
+            className="font-semibold text-[14px] leading-[21px] "
+            rules={[{ required: true, message: "Nom Kiriting!" }]}
+          >
+            <Input
+              size="large"
+              placeholder="Nom Kiriting"
+              style={{ fontWeight: "400" }}
+            />
+          </Form.Item>
+          <Form.Item
+            name={"file"}
+            valuePropName="fileList"
+            rules={[{ required: true, message: "File biriktiring!" }]}
+            getValueFromEvent={normFile}
+          >
+            <Upload maxCount={1} beforeUpload={beforeUpload}>
+              <Button
                 size="large"
-                placeholder="Tanlang"
-                style={{ fontWeight: "400" }}
-                options={courses}
+                icon={<PaperClipOutlined className="text-[#0EB182] text-lg" />}
+                type="dashed"
+                className="w-full text-[#0EB182] hover:!text-[#0EB182]"
               >
-                {agreementStore.coureses.map((item: CourseType) => (
-                  <Select.Option key={item.id} value={item.id}>
-                    {item.name}
-                  </Select.Option>
-                ))}
-              </Select>
-            </Form.Item>
-            <Form.Item
-              label="Nomi"
-              name="title"
-              className="font-semibold text-[14px] leading-[21px] "
-              rules={[{ required: true, message: "Nom Kiriting!" }]}
-            >
-              <Input
-                size="large"
-                placeholder="Nom Kiriting"
-                style={{ fontWeight: "400" }}
-              />
-            </Form.Item>
-            <Form.Item
-              name={"file"}
-              valuePropName="fileList"
-              rules={[{ required: true, message: "File biriktiring!" }]}
-              getValueFromEvent={normFile}
-            >
-              <Upload
-                onChange={handleFileChange}
-                beforeUpload={(file) => {
-                  const isDocx =
-                    file.type ===
-                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-                  if (!isDocx) {
-                    toast.error(
-                      "Faqat .docx formatdagi fayllarga ruxsat beriladi!"
-                    );
-                    return Upload.LIST_IGNORE;
-                  }
-                  return false; // Fayl ro'yxatga qo'shilmaydi
-                }}
-              >
-                <Button
-                  size="large"
-                  icon={
-                    <PaperClipOutlined className="text-[#0EB182] text-lg" />
-                  }
-                  type="dashed"
-                  className="w-full text-[#0EB182] hover:!text-[#0EB182]"
-                >
-                  Fayl biriktiring
-                </Button>
-              </Upload>
-            </Form.Item>
-            <Form.Item className="text-end">
-              <Space>
-                <Button htmlType="reset" size="large" onClick={handleOk}>
-                  Bekor qilish
-                </Button>
-                <Button
-                  type="primary"
-                  size="large"
-                  className="w-full bg-[#0EB182] hover:!bg-[#20ca9a]"
-                  htmlType="submit"
-                  loading={agreementStore.loading}
-                >
-                  {id ? "O‘zgartirish" : "Saqlash"}
-                </Button>
-              </Space>
-            </Form.Item>
-          </Form>
-        </Modal>
-      </>
-    );
-  }
-);
+                Fayl biriktiring
+              </Button>
+            </Upload>
+          </Form.Item>
+        </Form>
+      </Modal>
+    </>
+  );
+};
 
-export default CustomModal;
+export default observer(CustomModal);

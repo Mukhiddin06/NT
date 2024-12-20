@@ -1,22 +1,23 @@
 import { makeAutoObservable, runInAction } from "mobx";
-import { useAxios } from "../hooks/useAxios";
 import toast from "react-hot-toast";
-import { UploadFile } from "antd";
-import { AttachmentType, ContractType } from "../types/type";
+import { ContractType, ResponseDataType } from "../types/type";
+import {
+  createContracts,
+  editContracts,
+  getContracts,
+  getCourses,
+} from "../api/contracts";
+import axios, { AxiosError } from "axios";
 
 class AgreementStore {
-  allContracts = { contracts: [], total: 0 };
-  coureses = [];
-  page = 1;
-  perPage = 10;
+  allContracts: ResponseDataType = { contracts: [], total: 0 };
+  courses = [];
+  current = 1;
+  pageSize = 10;
   search = "";
-  file: UploadFile | null = null;
-  name = "";
-  course = "";
-  refresh = false;
-  editFile: AttachmentType | null = null;
-  contract: ContractType | null = null;
+  editContract: ContractType | null = null;
   loading = false;
+  isModalOpen = false;
 
   constructor() {
     makeAutoObservable(this);
@@ -24,29 +25,26 @@ class AgreementStore {
 
   async getCourses() {
     try {
-      const response = await useAxios().get("/api/staff/courses", {
-        params: {},
-      });
+      const res = await getCourses();
       runInAction(() => {
-        this.coureses = response.data.data.courses;
+        this.courses = res.data.courses;
       });
     } catch (error) {
       console.error("Xatolik:", error);
     }
   }
 
-  async getContracts() {
+  async getAllContracts() {
     try {
       this.loading = true;
-      const response = await useAxios().get("/api/staff/contracts/all", {
-        params: {
-          page: this.page,
-          perPage: this.perPage,
-          search: this.search,
-        },
+      const response = await getContracts({
+        page: this.current,
+        perPage: this.pageSize,
+        search: this.search,
       });
+
       runInAction(() => {
-        this.allContracts = response.data.data;
+        this.allContracts = response.data;
       });
     } catch (error) {
       console.error("Xatolik:", error);
@@ -55,117 +53,49 @@ class AgreementStore {
     }
   }
 
-  setPagination = (page: number, perPage: number) => {
-    this.page = page;
-    this.perPage = perPage;
+  async handleSubmit(contract: ContractType, id?: number) {
+    try {
+      this.setIsLoading(true);
+      let res;
+      if (id) {
+        res = await editContracts(id, contract);
+      } else {
+        res = await createContracts(contract);
+      }
+      return res;
+    } catch (error: AxiosError | unknown) {
+      if (
+        axios.isAxiosError(error) &&
+        error.response?.data.error.errId === 165
+      ) {
+        toast.error("Takrorlangan ma'lumot");
+      } else {
+        toast.error("Xatolik yuz berdi!");
+      }
+    } finally {
+      this.setIsLoading(false);
+    }
+  }
+
+  setPagination = (current: number, pageSize: number) => {
+    this.current = current;
+    this.pageSize = pageSize;
   };
 
   setSearch(search: string) {
     this.search = search;
   }
 
-  setFiles(file: UploadFile) {
-    this.file = file;
+  setIsLoading(loading: boolean) {
+    this.loading = loading;
   }
 
-  setName(name: string) {
-    this.name = name;
+  setEditContract(contract: ContractType | null) {
+    this.editContract = contract;
   }
 
-  setCourse(course: string) {
-    this.course = course;
-  }
-
-  setEditFile(attachment: AttachmentType) {
-    this.editFile = attachment;
-  }
-
-  async uploadFileAttachment() {
-    const response = await useAxios().post(
-      "/api/staff/upload/contract/attachment",
-      {
-        files: this.file,
-      },
-      {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      }
-    );
-
-    return response;
-  }
-
-  async handleCreateSubmit() {
-    try {
-      this.loading = true;
-      const response = await this.uploadFileAttachment();
-      if (response.status === 200) {
-        const contractData = {
-          title: this.name,
-          courseId: this.course,
-          attachment: {
-            size: response.data.data[0].size,
-            url: response.data.data[0].path,
-            origName: response.data.data[0].fileName,
-          },
-        };
-
-        await useAxios()
-          .post("/api/staff/contracts/create", contractData)
-          .then(() => {
-            this.getContracts();
-            toast.success("Shartnoma muvaffaqiyatli yaratildi!");
-          });
-      }
-    } catch (error) {
-      toast.error("Xatolik yuz berdi!");
-    } finally {
-      this.loading = false;
-    }
-  }
-
-  async getById(id: number) {
-    try {
-      const response = await useAxios().get(`/api/staff/contracts/${id}`);
-      runInAction(() => {
-        this.contract = response.data.data;
-      });
-    } catch (error) {
-      console.log("Xatolik:", error);
-    }
-  }
-
-  async putContract(id: number) {
-    try {
-      this.loading = true;
-      let attachmentData = this.editFile;
-      if (this.file) {
-        const response = await this.uploadFileAttachment();
-        attachmentData = {
-          size: response.data.data[0].size,
-          url: response.data.data[0].path,
-          origName: response.data.data[0].fileName,
-        };
-      }
-
-      const contractUpdateData = {
-        title: this.name,
-        courseId: this.course,
-        attachment: attachmentData,
-      };
-      await useAxios()
-        .put(`/api/staff/contracts/${id}`, contractUpdateData)
-        .then(() => {
-          this.getContracts();
-          toast.success("Shartnoma muvaffaqiyatli o'zgartirildi!");
-        });
-    } catch (error) {
-      toast.error("Shartnoma o'zgartirilmadi!");
-      console.error("Xatolik:", error);
-    } finally {
-      this.loading = false;
-    }
+  setIsModalOpen(isModalOpen: boolean) {
+    this.isModalOpen = isModalOpen;
   }
 }
 

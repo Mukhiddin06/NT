@@ -5,8 +5,7 @@ import Logo from "../assets/Images/LOGO Najot Ta'lim.svg";
 import toast, { Toaster } from "react-hot-toast";
 import { useAxios } from "../hooks/useAxios";
 import { useNavigate } from "react-router-dom";
-import { useState } from "react";
-import { LoadingOutlined } from "@ant-design/icons";
+import agreementStore from "../store/AgreementStore";
 
 type FieldType = {
   login?: string;
@@ -15,11 +14,10 @@ type FieldType = {
 
 const Login = () => {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState<boolean>(false);
 
   const onFinish: FormProps<FieldType>["onFinish"] = async (values) => {
     try {
-      setLoading(true);
+      agreementStore.setIsLoading(true);
       const response = await useAxios().post("/api/staff/auth/sign-in", values);
       if (response) {
         toast.success("Tizimga kirildi!");
@@ -28,19 +26,12 @@ const Login = () => {
           JSON.stringify(response.data.data.accessToken)
         );
         navigate("/agreement");
-        setLoading(false);
       }
     } catch (error) {
       toast.error("Parol yoki loginda xatolik");
     } finally {
-      setLoading(false);
+      agreementStore.setIsLoading(false);
     }
-  };
-
-  const onFinishFailed: FormProps<FieldType>["onFinishFailed"] = (
-    errorInfo
-  ) => {
-    console.log("Failed:", errorInfo);
   };
 
   return (
@@ -68,20 +59,16 @@ const Login = () => {
           <Form
             name="basic"
             layout="vertical"
-            style={{ maxWidth: 600 }}
             className="w-[380px] pl-[16px]"
             initialValues={{ layout: "vertical" }}
             onFinish={onFinish}
-            onFinishFailed={onFinishFailed}
             autoComplete="off"
           >
             <Form.Item<FieldType>
               label="Login"
               name="login"
               className="font-semibold text-[14px] leading-[21px] "
-              rules={[
-                { required: true, message: "Please input your username!" },
-              ]}
+              rules={[{ required: true, message: "Login kiriting!" }]}
             >
               <Input
                 size="large"
@@ -94,9 +81,7 @@ const Login = () => {
               label="Parol"
               name="password"
               className="font-semibold text-[14px] leading-[21px] "
-              rules={[
-                { required: true, message: "Please input your password!" },
-              ]}
+              rules={[{ required: true, message: "Parol kiriting!" }]}
             >
               <Input.Password
                 size="large"
@@ -104,14 +89,15 @@ const Login = () => {
                 placeholder="Parolni kiriting"
               />
             </Form.Item>
-            <Form.Item label={null}>
+            <Form.Item>
               <Button
+                loading={agreementStore.loading}
                 type="primary"
                 size="large"
                 className="w-full bg-[#0EB182] hover:!bg-[#20ca9a]"
                 htmlType="submit"
               >
-                {loading ? <LoadingOutlined /> : "Kirish"}
+                Kirish
               </Button>
             </Form.Item>
           </Form>
